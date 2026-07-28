@@ -2,6 +2,7 @@
     "name": "webfox/webfox-block-builder",
     "description": "ACF-like block editor for Laravel/Orchid pages",
     "type": "library",
+    "version": "1.0.0",
     "license": "MIT",
     "authors": [
         {
