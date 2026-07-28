@@ -1,0 +1,31 @@
+{
+    "name": "webfox/webfox-block-builder",
+    "description": "ACF-like block editor for Laravel/Orchid pages",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Webfox",
+            "email": "info@webfox.dev"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^12.0",
+        "orchid/platform": "^14.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Webfox\\BlockEditor\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Webfox\\BlockEditor\\BlockEditorServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
