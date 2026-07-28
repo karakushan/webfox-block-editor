@@ -1,5 +1,5 @@
 @php
-    $currentLocale = request()->get('lang', config('locales.default', 'uk'));
+    $currentLocale = request()->get('lang', app()->getLocale());
     $finalModelId = $modelId ?? ($model ? $model->getKey() : null);
     $finalModelClass = $modelClass ?? ($model ? get_class($model) : null);
 @endphp
