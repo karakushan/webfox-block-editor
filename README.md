@@ -5,7 +5,7 @@ Reusable block editor for Laravel 12 and Orchid Platform 14.
 ## Install in a new project
 
 ```bash
-composer require webfox/webfox-block-builder
+composer require karakushan/webfox-block-builder
 php artisan block-builder:install
 ```
 

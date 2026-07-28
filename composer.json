@@ -1,8 +1,8 @@
 {
-    "name": "webfox/webfox-block-builder",
+    "name": "karakushan/webfox-block-builder",
     "description": "ACF-like block editor for Laravel/Orchid pages",
     "type": "library",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "license": "MIT",
     "authors": [
         {
