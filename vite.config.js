@@ -3,6 +3,9 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
     root: new URL('.', import.meta.url).pathname,
+    define: {
+        process: JSON.stringify({ env: { NODE_ENV: 'production' } }),
+    },
     plugins: [vue()],
     build: {
         lib: {
