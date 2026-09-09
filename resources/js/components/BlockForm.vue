@@ -109,8 +109,33 @@
 
                 <!-- Settings Fields -->
                 <div v-if="settingsFields && Object.keys(settingsFields).length > 0" class="block-form__section">
-                    <h4 class="block-form__section-title">Налаштування</h4>
-                    <div class="block-form__section-fields">
+                    <button
+                        type="button"
+                        class="block-form__section-title block-form__section-toggle"
+                        :aria-expanded="settingsExpanded"
+                        @click="settingsExpanded = !settingsExpanded"
+                    >
+                        <span class="block-form__section-toggle-label">
+                            <img
+                                v-if="blockConfig.settings_icon"
+                                :src="blockConfig.settings_icon"
+                                alt=""
+                                aria-hidden="true"
+                                class="block-form__section-toggle-icon-image"
+                            />
+                            <span>{{ blockConfig.settings_title || 'Налаштування' }}</span>
+                        </span>
+                        <svg
+                            aria-hidden="true"
+                            class="block-form__section-toggle-icon"
+                            :class="{ 'block-form__section-toggle-icon--expanded': settingsExpanded }"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                        >
+                            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <div v-show="settingsExpanded" class="block-form__section-fields">
                         <div
                             v-for="(fieldConfig, fieldName) in settingsFields"
                             :key="'settings-' + fieldName"
@@ -260,6 +285,7 @@ export default {
         const notification = ref({ show: false, message: '', type: 'success' });
         const wysiwygRefs = ref({});
         const lastReinitTime = ref(0);
+        const settingsExpanded = ref(blockConfig.value?.settings_collapsed !== true);
         const formData = reactive({
             id: props.block.id || `block-${Date.now()}`,
             type: props.blockType,
@@ -426,6 +452,7 @@ export default {
         return {
             props,
             blockConfig,
+            settingsExpanded,
             formData,
             dataFields,
             settingsFields,
@@ -465,6 +492,43 @@ export default {
     margin: 0;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid #e5e7eb;
+}
+
+.block-form__section-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    background: transparent;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.block-form__section-toggle-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.block-form__section-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.block-form__section-toggle-icon-image {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+}
+
+.block-form__section-toggle-icon--expanded {
+    transform: rotate(180deg);
 }
 
 .block-form__section-fields {
