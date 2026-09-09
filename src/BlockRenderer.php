@@ -70,6 +70,10 @@ class BlockRenderer
      */
     public function renderBlock(array $block, $model = null, ?string $locale = null): string
     {
+        if (! $this->isBlockEnabled($block)) {
+            return '';
+        }
+
         $type = $block['type'] ?? null;
         
         \Log::debug('BlockRenderer: renderBlock', [
@@ -117,6 +121,30 @@ class BlockRenderer
 
             return '';
         }
+    }
+
+    /**
+     * Check whether a block should be visible on the frontend.
+     *
+     * Blocks created before the visibility switcher have no flag and remain enabled.
+     */
+    protected function isBlockEnabled(array $block): bool
+    {
+        $enabled = data_get($block, 'settings.enabled', true);
+
+        if (is_bool($enabled)) {
+            return $enabled;
+        }
+
+        if (is_numeric($enabled)) {
+            return (float) $enabled !== 0.0;
+        }
+
+        if (is_string($enabled)) {
+            return ! in_array(strtolower(trim($enabled)), ['0', 'false', 'off', 'no'], true);
+        }
+
+        return true;
     }
 
     /**

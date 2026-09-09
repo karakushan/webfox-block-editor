@@ -138,7 +138,7 @@
             <!-- Blocks List -->
             <div class="block-editor__list">
                 <div v-for="(block, index) in blocks" :key="block.id || index" :data-block-index="index"
-                    class="block-item">
+                    class="block-item" :class="{ 'block-item--disabled': !isBlockEnabled(block) }">
                     <!-- Block Header (Accordion) -->
                     <div class="block-item__header" @click="toggleBlock(index)" draggable="true"
                         @dragstart="handleDragStart($event, index)" @dragover.prevent="handleDragOver($event)"
@@ -193,6 +193,23 @@
 
                             <!-- Actions -->
                             <div class="block-item__actions" @click.stop>
+                                <button
+                                    type="button"
+                                    class="block-item__visibility-toggle"
+                                    :class="{ 'block-item__visibility-toggle--disabled': !isBlockEnabled(block) }"
+                                    :aria-pressed="isBlockEnabled(block)"
+                                    :aria-label="isBlockEnabled(block) ? 'Вимкнути блок на сайті' : 'Увімкнути блок на сайті'"
+                                    :title="isBlockEnabled(block) ? 'Блок увімкнений на сайті' : 'Блок вимкнений на сайті'"
+                                    :disabled="visibilityUpdating[index]"
+                                    @click.stop="toggleBlockVisibility(index)"
+                                >
+                                    <span class="block-item__visibility-track" aria-hidden="true">
+                                        <span class="block-item__visibility-thumb"></span>
+                                    </span>
+                                    <span class="block-item__visibility-label">
+                                        {{ isBlockEnabled(block) ? 'Вкл' : 'Викл' }}
+                                    </span>
+                                </button>
                                 <button type="button" @click="copyBlock(index, $event)" class="block-item__copy-btn"
                                     title="Копіювати блок">
                                     <svg class="block-item__copy-btn-icon" fill="none" stroke="currentColor"
@@ -306,6 +323,7 @@ export default {
         const groupedBlocks = ref({});
         const searchQuery = ref('');
         const draggedBlockIndex = ref(null);
+        const visibilityUpdating = reactive({});
         const notification = ref({ show: false, message: '', type: 'success' });
         const fileInput = ref(null);
         const clipboardBlock = ref(null);
@@ -390,6 +408,69 @@ export default {
                 blocks.value = data.blocks || [];
             } catch (error) {
                 console.error('Failed to load blocks:', error);
+            }
+        };
+
+        /**
+         * Blocks created before the visibility switcher are enabled by default.
+         */
+        const isBlockEnabled = (block) => block?.settings?.enabled !== false;
+
+        /**
+         * Toggle frontend visibility without removing the block from the editor.
+         */
+        const toggleBlockVisibility = async (index) => {
+            const block = blocks.value[index];
+
+            if (!block || visibilityUpdating[index]) {
+                return;
+            }
+
+            const previousBlock = JSON.parse(JSON.stringify(block));
+            const enabled = !isBlockEnabled(block);
+            const updatedBlock = {
+                ...previousBlock,
+                settings: {
+                    ...(previousBlock.settings || {}),
+                    enabled,
+                },
+            };
+
+            visibilityUpdating[index] = true;
+            blocks.value[index] = updatedBlock;
+
+            try {
+                const response = await fetch(`${props.apiUrl}/blocks/${index}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': props.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        modelId: props.modelId,
+                        modelClass: props.modelClass,
+                        contentField: props.contentField,
+                        locale: props.locale,
+                        blockData: updatedBlock,
+                    }),
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || 'Не вдалося змінити видимість блоку');
+                }
+
+                showNotification(
+                    enabled ? 'Блок увімкнено на сайті' : 'Блок вимкнено на сайті',
+                    'success'
+                );
+            } catch (error) {
+                blocks.value[index] = previousBlock;
+                console.error('Failed to toggle block visibility:', error);
+                showNotification('Не вдалося змінити видимість блоку', 'error');
+            } finally {
+                visibilityUpdating[index] = false;
             }
         };
 
@@ -937,11 +1018,14 @@ export default {
                 searchQuery,
                 filteredGroupedBlocks,
                 notification,
+                visibilityUpdating,
                 fileInput,
                 clipboardBlock,
                 copyTooltip,
                 previewTooltip,
                 addBlock,
+                isBlockEnabled,
+                toggleBlockVisibility,
                 deleteBlock,
                 toggleBlock,
                 handleBlockSave,
