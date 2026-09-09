@@ -1,5 +1,36 @@
     <template>
-        <div class="block-editor">
+        <div class="block-editor" @click="showToolsMenu = false">
+            <Teleport to="body">
+                <div
+                    v-if="deleteConfirm.visible"
+                    class="block-editor__confirm-backdrop"
+                    role="presentation"
+                    tabindex="-1"
+                    @click.self="cancelDelete"
+                    @keydown.esc="cancelDelete"
+                >
+                    <section class="block-editor__confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="block-delete-title">
+                        <div class="block-editor__confirm-icon" aria-hidden="true">!</div>
+                        <h3 id="block-delete-title">
+                            {{ deleteConfirm.all ? 'Видалити всі блоки?' : 'Видалити блок?' }}
+                        </h3>
+                        <p>
+                            {{ deleteConfirm.all
+                                ? 'Усі блоки цієї сторінки будуть видалені. Повернути їх буде неможливо.'
+                                : 'Блок буде видалено з цієї сторінки. Цю дію не можна скасувати.' }}
+                        </p>
+                        <div class="block-editor__confirm-actions">
+                            <button type="button" class="block-editor__confirm-button block-editor__confirm-button--cancel" @click="cancelDelete">
+                                Скасувати
+                            </button>
+                        <button type="button" class="block-editor__confirm-button block-editor__confirm-button--delete" @click="confirmDelete">
+                                {{ deleteConfirm.all ? 'Видалити всі' : 'Видалити' }}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            </Teleport>
+
             <!-- Copy Tooltip -->
             <Teleport to="body">
                 <div
@@ -31,7 +62,9 @@
         <!-- Sidebar -->
         <div class="block-editor__sidebar" :class="{ 'block-editor__sidebar--open': showSidebar }">
             <div class="block-editor__sidebar-header">
-                <h3 class="block-editor__sidebar-title">Додати блок</h3>
+                <h3 class="block-editor__sidebar-title">
+                    {{ addBlockPosition === 'before' ? 'Додати блок перед контентом' : 'Додати блок після контенту' }}
+                </h3>
                 <button type="button" @click="showSidebar = false" class="block-editor__sidebar-close">
                     <svg class="block-editor__sidebar-close-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
@@ -108,12 +141,61 @@
             <!-- Action Buttons -->
             <div class="block-editor__actions">
                 <div class="block-editor__add-button">
-                    <button type="button" @click="showSidebar = true" class="block-editor__add-button-btn">
+                    <button type="button" @click="openAddMenu('before')" class="block-editor__add-button-btn" title="Додати блок перед контентом">
                         <svg class="block-editor__add-button-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                         </svg>
                         Додати блок
                     </button>
+                </div>
+
+                <div class="block-editor__tools" @click.stop>
+                    <button
+                        type="button"
+                        class="block-editor__tools-btn"
+                        :aria-expanded="showToolsMenu"
+                        aria-label="Інструменти блоків"
+                        title="Інструменти блоків"
+                        @click="showToolsMenu = !showToolsMenu"
+                    >
+                        <span class="block-editor__tools-dot"></span>
+                        <span class="block-editor__tools-dot"></span>
+                        <span class="block-editor__tools-dot"></span>
+                    </button>
+
+                    <div v-if="showToolsMenu" class="block-editor__tools-menu">
+                        <button type="button" class="block-editor__tools-menu-item" @click="copyAllBlocks">
+                            <span class="block-editor__tools-menu-icon">⧉</span>
+                            <span>Копіювати всі блоки</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="block-editor__tools-menu-item"
+                            :disabled="!allClipboard"
+                            @click="pasteAllBlocks"
+                        >
+                            <span class="block-editor__tools-menu-icon">↳</span>
+                            <span>Вставити всі блоки</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="block-editor__tools-menu-item block-editor__tools-menu-item--danger"
+                            :disabled="blocks.length === 0"
+                            @click="requestDeleteAllBlocks"
+                        >
+                            <span class="block-editor__tools-menu-icon">⌫</span>
+                            <span>Видалити всі блоки</span>
+                        </button>
+                        <div class="block-editor__tools-menu-divider"></div>
+                        <button type="button" class="block-editor__tools-menu-item" @click="exportBlocks">
+                            <span class="block-editor__tools-menu-icon">↓</span>
+                            <span>Експорт блоків</span>
+                        </button>
+                        <button type="button" class="block-editor__tools-menu-item" @click="triggerImport">
+                            <span class="block-editor__tools-menu-icon">↑</span>
+                            <span>Імпорт блоків</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="block-editor__export-import">
@@ -228,7 +310,7 @@
                                         </path>
                                     </svg>
                                 </button>
-                                <button type="button" @click="deleteBlock(index)" class="block-item__delete-btn"
+                                <button type="button" @click="requestDeleteBlock(index)" class="block-item__delete-btn"
                                     title="Видалити блок">
                                     <svg class="block-item__delete-btn-icon" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
@@ -257,13 +339,27 @@
                 </div>
             </div>
 
-            <div v-if="blocks.length === 0" class="block-editor__empty">
+            <div v-if="isLoadingBlocks && blocks.length === 0" class="block-editor__loading" role="status" aria-live="polite">
+                <svg class="block-editor__hourglass" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 3h14M5 21h14M7 3c0 5 5 5 5 9s-5 4-5 9M17 3c0 5-5 5-5 9s5 4 5 9" />
+                    <path class="block-editor__hourglass-sand block-editor__hourglass-sand--top" d="M8 5h8l-4 5-4-5Z" />
+                    <path class="block-editor__hourglass-sand block-editor__hourglass-sand--bottom" d="M8 19h8l-4-5-4 5Z" />
+                </svg>
+                <strong>Завантаження блоків</strong>
+                <span>Готуємо контент редактора…</span>
+            </div>
+
+            <div v-else-if="blocksLoadError" class="block-editor__empty block-editor__empty--error">
+                Не вдалося завантажити блоки. Оновіть сторінку та спробуйте ще раз.
+            </div>
+
+            <div v-else-if="blocks.length === 0" class="block-editor__empty">
                 Немає блоків. Натисніть "Додати блок" щоб почати.
             </div>
 
             <!-- Add Block Button (Bottom) -->
             <div class="block-editor__add-button block-editor__add-button--bottom">
-                <button type="button" @click="showSidebar = true" class="block-editor__add-button-btn">
+                <button type="button" @click="openAddMenu('after')" class="block-editor__add-button-btn" title="Додати блок після контенту">
                     <svg class="block-editor__add-button-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                     </svg>
@@ -317,16 +413,22 @@ export default {
     },
     setup(props) {
         const showSidebar = ref(false);
+        const addBlockPosition = ref('after');
+        const showToolsMenu = ref(false);
         const blocks = ref([]);
+        const isLoadingBlocks = ref(true);
+        const blocksLoadError = ref(false);
         const openBlocks = reactive({});
         const availableBlocks = ref({});
         const groupedBlocks = ref({});
         const searchQuery = ref('');
         const draggedBlockIndex = ref(null);
         const visibilityUpdating = reactive({});
+        const deleteConfirm = reactive({ visible: false, index: null, all: false });
         const notification = ref({ show: false, message: '', type: 'success' });
         const fileInput = ref(null);
         const clipboardBlock = ref(null);
+        const allClipboard = ref(null);
         const copyTooltip = reactive({
             visible: false,
             x: 0,
@@ -400,6 +502,9 @@ export default {
          * Load blocks from API.
          */
         const loadBlocks = async () => {
+            isLoadingBlocks.value = true;
+            blocksLoadError.value = false;
+
             try {
                 const response = await fetch(
                     `${props.apiUrl}/blocks?modelId=${props.modelId}&modelClass=${encodeURIComponent(props.modelClass)}&contentField=${props.contentField}&locale=${props.locale}`
@@ -408,6 +513,9 @@ export default {
                 blocks.value = data.blocks || [];
             } catch (error) {
                 console.error('Failed to load blocks:', error);
+                blocksLoadError.value = true;
+            } finally {
+                isLoadingBlocks.value = false;
             }
         };
 
@@ -475,6 +583,14 @@ export default {
         };
 
         /**
+         * Open the block picker for a specific insertion position.
+         */
+        const openAddMenu = (position) => {
+            addBlockPosition.value = position === 'before' ? 'before' : 'after';
+            showSidebar.value = true;
+        };
+
+        /**
          * Add a new block.
          */
         const addBlock = async (type) => {
@@ -493,6 +609,7 @@ export default {
                         modelClass: props.modelClass,
                         contentField: props.contentField,
                         locale: props.locale,
+                        position: addBlockPosition.value,
                         type: type,
                     }),
                 });
@@ -516,10 +633,6 @@ export default {
          * Delete a block.
          */
         const deleteBlock = async (index) => {
-            if (!confirm('Видалити цей блок?')) {
-                return;
-            }
-
             const block = blocks.value[index];
             if (!block) {
                 return;
@@ -556,6 +669,80 @@ export default {
                 }
             } catch (error) {
                 console.error('Failed to delete block:', error);
+            }
+        };
+
+        const deleteAllBlocks = async () => {
+            try {
+                const response = await fetch(`${props.apiUrl}/blocks/delete-all`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': props.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        modelId: props.modelId,
+                        modelClass: props.modelClass,
+                        contentField: props.contentField,
+                        locale: props.locale,
+                    }),
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || 'Не вдалося видалити всі блоки');
+                }
+
+                blocks.value = [];
+                Object.keys(openBlocks).forEach((index) => delete openBlocks[index]);
+                showToolsMenu.value = false;
+                showNotification(`Видалено ${data.count || 0} блоків`, 'success');
+            } catch (error) {
+                console.error('Failed to delete all blocks:', error);
+                showNotification('Не вдалося видалити всі блоки', 'error');
+            }
+        };
+
+        /**
+         * Open the custom delete confirmation dialog.
+         */
+        const requestDeleteBlock = (index) => {
+            if (!blocks.value[index]) {
+                return;
+            }
+
+            deleteConfirm.index = index;
+            deleteConfirm.all = false;
+            deleteConfirm.visible = true;
+        };
+
+        const requestDeleteAllBlocks = () => {
+            if (blocks.value.length === 0) {
+                return;
+            }
+
+            showToolsMenu.value = false;
+            deleteConfirm.index = null;
+            deleteConfirm.all = true;
+            deleteConfirm.visible = true;
+        };
+
+        const cancelDelete = () => {
+            deleteConfirm.visible = false;
+            deleteConfirm.index = null;
+            deleteConfirm.all = false;
+        };
+
+        const confirmDelete = async () => {
+            const index = deleteConfirm.index;
+            const deleteAll = deleteConfirm.all;
+            cancelDelete();
+
+            if (deleteAll) {
+                await deleteAllBlocks();
+            } else if (index !== null) {
+                await deleteBlock(index);
             }
         };
 
@@ -637,7 +824,7 @@ export default {
          * Handle block delete.
          */
         const handleBlockDelete = (blockIndex) => {
-            deleteBlock(blockIndex);
+            requestDeleteBlock(blockIndex);
         };
 
         /**
@@ -663,6 +850,70 @@ export default {
                 setTimeout(() => {
                     copyTooltip.visible = false;
                 }, 1500);
+            }
+        };
+
+        /**
+         * Copy the complete block package for pasting on another page.
+         */
+        const copyAllBlocks = () => {
+            if (blocks.value.length === 0) {
+                showNotification('Немає блоків для копіювання', 'error');
+                return;
+            }
+
+            const copiedPackage = {
+                version: '1.0',
+                copiedAt: new Date().toISOString(),
+                sourceModelId: props.modelId,
+                sourceModelClass: props.modelClass,
+                contentField: props.contentField,
+                locale: props.locale,
+                blocks: JSON.parse(JSON.stringify(blocks.value)),
+            };
+
+            localStorage.setItem('blockEditorAllClipboard', JSON.stringify(copiedPackage));
+            allClipboard.value = copiedPackage;
+            showToolsMenu.value = false;
+            showNotification(`Скопійовано ${blocks.value.length} блоків`, 'success');
+        };
+
+        /**
+         * Paste the complete block package after the current blocks.
+         */
+        const pasteAllBlocks = async () => {
+            if (!allClipboard.value?.blocks?.length) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${props.apiUrl}/blocks/paste-all`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': props.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        modelId: props.modelId,
+                        modelClass: props.modelClass,
+                        contentField: props.contentField,
+                        locale: props.locale,
+                        blocks: allClipboard.value.blocks,
+                    }),
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || 'Не вдалося вставити всі блоки');
+                }
+
+                await loadBlocks();
+                showToolsMenu.value = false;
+                showNotification(`Вставлено ${data.count || allClipboard.value.blocks.length} блоків`, 'success');
+            } catch (error) {
+                console.error('Failed to paste all blocks:', error);
+                showNotification('Не вдалося вставити всі блоки', 'error');
             }
         };
 
@@ -751,6 +1002,14 @@ export default {
                 const stored = localStorage.getItem('blockEditorClipboard');
                 if (stored) {
                     clipboardBlock.value = JSON.parse(stored);
+                }
+
+                const storedPackage = localStorage.getItem('blockEditorAllClipboard');
+                if (storedPackage) {
+                    const parsedPackage = JSON.parse(storedPackage);
+                    if (Array.isArray(parsedPackage.blocks) && parsedPackage.blocks.length > 0) {
+                        allClipboard.value = parsedPackage;
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load clipboard:', error);
@@ -890,6 +1149,8 @@ export default {
          * Export blocks to JSON file.
          */
         const exportBlocks = () => {
+            showToolsMenu.value = false;
+
             if (blocks.value.length === 0) {
                 showNotification('Немає блоків для експорту', 'error');
                 return;
@@ -923,6 +1184,8 @@ export default {
          * Trigger file input for import.
          */
         const triggerImport = () => {
+            showToolsMenu.value = false;
+
             if (fileInput.value) {
                 fileInput.value.click();
             }
@@ -1011,7 +1274,11 @@ export default {
             return {
                 props,
                 showSidebar,
+                addBlockPosition,
+                showToolsMenu,
                 blocks,
+                isLoadingBlocks,
+                blocksLoadError,
                 openBlocks,
                 availableBlocks,
                 groupedBlocks,
@@ -1019,19 +1286,28 @@ export default {
                 filteredGroupedBlocks,
                 notification,
                 visibilityUpdating,
+                deleteConfirm,
                 fileInput,
                 clipboardBlock,
+                allClipboard,
                 copyTooltip,
                 previewTooltip,
+                openAddMenu,
                 addBlock,
                 isBlockEnabled,
                 toggleBlockVisibility,
                 deleteBlock,
+                requestDeleteAllBlocks,
+                requestDeleteBlock,
+                cancelDelete,
+                confirmDelete,
                 toggleBlock,
                 handleBlockSave,
                 handleBlockDelete,
                 copyBlock,
+                copyAllBlocks,
                 pasteBlock,
+                pasteAllBlocks,
                 pasteBlockAfter,
                 handleDragStart,
                 handleDragOver,

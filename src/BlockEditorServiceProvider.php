@@ -76,6 +76,8 @@ class BlockEditorServiceProvider extends ServiceProvider
                 Route::get('/blocks', [BlockEditorController::class, 'index'])->name('block-editor.blocks.index');
                 Route::post('/blocks', [BlockEditorController::class, 'store'])->name('block-editor.blocks.store');
                 Route::post('/blocks/paste-after', [BlockEditorController::class, 'pasteAfter'])->name('block-editor.blocks.paste-after');
+                Route::post('/blocks/paste-all', [BlockEditorController::class, 'pasteAll'])->name('block-editor.blocks.paste-all');
+                Route::post('/blocks/delete-all', [BlockEditorController::class, 'deleteAll'])->name('block-editor.blocks.delete-all');
                 Route::put('/blocks/{index}', [BlockEditorController::class, 'update'])->name('block-editor.blocks.update');
                 Route::delete('/blocks/{index}', [BlockEditorController::class, 'destroy'])->name('block-editor.blocks.destroy');
                 Route::post('/blocks/reorder', [BlockEditorController::class, 'reorder'])->name('block-editor.blocks.reorder');

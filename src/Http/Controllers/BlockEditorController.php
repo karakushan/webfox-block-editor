@@ -117,11 +117,19 @@ class BlockEditorController extends Controller
         $locale = $request->input('locale', 'uk');
         $type = $request->input('type');
         $blockData = $request->input('blockData');
+        $position = $request->input('position', 'after');
 
         if (! $modelId || ! $modelClass || ! $type) {
             return response()->json([
                 'success' => false,
                 'message' => 'Model ID, class, and block type are required',
+            ], 400);
+        }
+
+        if (! in_array($position, ['before', 'after'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Position must be before or after',
             ], 400);
         }
 
@@ -149,19 +157,13 @@ class BlockEditorController extends Controller
             $content = $this->getContent($model, $contentField, $locale);
             $blocks = $content['blocks'] ?? [];
 
-            $maxOrder = 0;
-            if (! empty($blocks)) {
-                $orders = array_column($blocks, 'order');
-                $maxOrder = ! empty($orders) ? max($orders) : 0;
-            }
-
             // Check if blockData is provided (for paste operation)
             if ($blockData) {
                 // Paste operation - use provided data with new ID
                 $newBlock = [
                     'id' => 'block-' . uniqid(),
                     'type' => $type,
-                    'order' => $maxOrder + 1,
+                    'order' => 0,
                     'settings' => $blockData['settings'] ?? BlockRegistry::defaultSettings($type),
                     'data' => $blockData['data'] ?? BlockRegistry::defaultData($type),
                 ];
@@ -170,13 +172,27 @@ class BlockEditorController extends Controller
                 $newBlock = [
                     'id' => 'block-' . uniqid(),
                     'type' => $type,
-                    'order' => $maxOrder + 1,
+                    'order' => 0,
                     'settings' => BlockRegistry::defaultSettings($type),
                     'data' => BlockRegistry::defaultData($type),
                 ];
             }
 
-            $blocks[] = $newBlock;
+            if ($position === 'before') {
+                array_unshift($blocks, $newBlock);
+            } else {
+                $blocks[] = $newBlock;
+            }
+
+            foreach ($blocks as $index => &$block) {
+                $block['order'] = $index + 1;
+            }
+            unset($block);
+
+            $newBlock = $position === 'before'
+                ? $blocks[0]
+                : $blocks[array_key_last($blocks)];
+
             $content['blocks'] = $blocks;
 
             $this->saveContent($model, $contentField, $locale, $content);
@@ -285,6 +301,145 @@ class BlockEditorController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to paste block: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Paste a copied package of blocks after the existing blocks.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function pasteAll(Request $request): JsonResponse
+    {
+        $modelId = $request->input('modelId');
+        $modelClass = $request->input('modelClass');
+        $contentField = $request->input('contentField', 'content');
+        $locale = $request->input('locale', 'uk');
+        $copiedBlocks = $request->input('blocks');
+
+        if (! $modelId || ! $modelClass || ! is_array($copiedBlocks) || empty($copiedBlocks)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Model ID, class, and a non-empty blocks array are required',
+            ], 400);
+        }
+
+        if (! $this->isAllowedModel($modelClass)) {
+            return $this->forbiddenModelResponse();
+        }
+
+        try {
+            $model = $modelClass::find($modelId);
+
+            if (! $model) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Model not found',
+                ], 404);
+            }
+
+            $content = $this->getContent($model, $contentField, $locale);
+            $blocks = $content['blocks'] ?? [];
+            $nextOrder = count($blocks) + 1;
+            $pastedBlocks = [];
+
+            foreach ($copiedBlocks as $index => $block) {
+                $type = $block['type'] ?? null;
+
+                if (! $type || ! BlockRegistry::has($type)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Block at index '.$index.' has an unknown type',
+                    ], 400);
+                }
+
+                $pastedBlocks[] = [
+                    'id' => 'block-'.uniqid(),
+                    'type' => $type,
+                    'order' => $nextOrder++,
+                    'settings' => $block['settings'] ?? BlockRegistry::defaultSettings($type),
+                    'data' => $block['data'] ?? BlockRegistry::defaultData($type),
+                ];
+            }
+
+            $content['blocks'] = [...$blocks, ...$pastedBlocks];
+            $this->saveContent($model, $contentField, $locale, $content);
+
+            return response()->json([
+                'success' => true,
+                'blocks' => $pastedBlocks,
+                'count' => count($pastedBlocks),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to paste all blocks', [
+                'error' => $e->getMessage(),
+                'modelId' => $modelId,
+                'modelClass' => $modelClass,
+                'count' => count($copiedBlocks),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to paste all blocks: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete all blocks for a model and locale.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteAll(Request $request): JsonResponse
+    {
+        $modelId = $request->input('modelId');
+        $modelClass = $request->input('modelClass');
+        $contentField = $request->input('contentField', 'content');
+        $locale = $request->input('locale', 'uk');
+
+        if (! $modelId || ! $modelClass) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Model ID and class are required',
+            ], 400);
+        }
+
+        if (! $this->isAllowedModel($modelClass)) {
+            return $this->forbiddenModelResponse();
+        }
+
+        try {
+            $model = $modelClass::find($modelId);
+
+            if (! $model) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Model not found',
+                ], 404);
+            }
+
+            $content = $this->getContent($model, $contentField, $locale);
+            $count = count($content['blocks'] ?? []);
+            $content['blocks'] = [];
+            $this->saveContent($model, $contentField, $locale, $content);
+
+            return response()->json([
+                'success' => true,
+                'count' => $count,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete all blocks', [
+                'error' => $e->getMessage(),
+                'modelId' => $modelId,
+                'modelClass' => $modelClass,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete all blocks: '.$e->getMessage(),
             ], 500);
         }
     }
