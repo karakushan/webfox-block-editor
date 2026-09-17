@@ -10,6 +10,8 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Webfox\BlockEditor\Events\ImageDeleted;
+use Webfox\BlockEditor\Events\ImageUploaded;
 
 class ImageUploadController extends Controller
 {
@@ -72,6 +74,8 @@ class ImageUploadController extends Controller
                 ], 500);
             }
 
+            event(new ImageUploaded($path));
+
             // Return relative URL path (without domain)
             // Storage::url() returns full URL, but we need relative path for asset()
             $url = '/storage/' . $path;
@@ -113,6 +117,8 @@ class ImageUploadController extends Controller
             if (Storage::disk('public')->exists($path)) {
                 Storage::disk('public')->delete($path);
             }
+
+            event(new ImageDeleted($path));
         } catch (\Exception $e) {
             // Log error but don't fail the upload
             Log::warning('Failed to delete old image', [
@@ -208,6 +214,8 @@ class ImageUploadController extends Controller
                 ], 500);
             }
 
+            event(new ImageUploaded($path));
+
             // Return URL in TinyMCE expected format
             // TinyMCE expects 'location' field with full URL
             $url = url('/storage/' . $path);
@@ -228,4 +236,3 @@ class ImageUploadController extends Controller
         }
     }
 }
-
