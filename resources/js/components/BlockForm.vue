@@ -136,8 +136,68 @@
                         </svg>
                     </button>
                     <div v-show="settingsExpanded" class="block-form__section-fields">
+                        <div v-if="spacingFields.length > 0" class="block-form__settings-group">
+                            <button
+                                type="button"
+                                class="block-form__settings-group-title"
+                                :aria-expanded="spacingExpanded"
+                                @click="spacingExpanded = !spacingExpanded"
+                            >
+                                <span>Відступи</span>
+                                <svg
+                                    aria-hidden="true"
+                                    class="block-form__settings-group-icon"
+                                    :class="{ 'block-form__settings-group-icon--expanded': spacingExpanded }"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                >
+                                    <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </button>
+
+                            <div v-show="spacingExpanded" class="block-form__spacing-fields">
+                                <div class="block-form__responsive-tabs" role="tablist" aria-label="Адаптивні налаштування">
+                                    <button
+                                        v-for="device in spacingDevices"
+                                        :key="device.key"
+                                        type="button"
+                                        class="block-form__responsive-tab"
+                                        :class="{ 'block-form__responsive-tab--active': spacingDevice === device.key }"
+                                        role="tab"
+                                        :aria-selected="spacingDevice === device.key"
+                                        @click="spacingDevice = device.key"
+                                    >
+                                        {{ device.label }}
+                                    </button>
+                                </div>
+
+                                <div class="block-form__spacing-grid">
+                                    <div
+                                        v-for="fieldName in activeSpacingFields"
+                                        :key="`spacing-${fieldName}`"
+                                        class="block-form__field"
+                                    >
+                                        <label class="block-form__label">
+                                            {{ settingsFields[fieldName].label }}
+                                        </label>
+                                        <div class="block-form__unit-input">
+                                            <input
+                                                v-model.number="formData.settings[fieldName]"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                :placeholder="settingsFields[fieldName].placeholder || '0'"
+                                                class="block-form__input"
+                                            />
+                                            <span class="block-form__unit">px</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div
-                            v-for="(fieldConfig, fieldName) in settingsFields"
+                            v-for="(fieldConfig, fieldName) in otherSettingsFields"
                             :key="'settings-' + fieldName"
                             class="block-form__field"
                         >
@@ -286,12 +346,30 @@ export default {
         const wysiwygRefs = ref({});
         const lastReinitTime = ref(0);
         const settingsExpanded = ref(blockConfig.value?.settings_collapsed !== true);
+        const spacingExpanded = ref(true);
+        const spacingDevice = ref('desktop');
+        const spacingDevices = [
+            { key: 'desktop', label: 'ПК' },
+            { key: 'mobile', label: 'Мобільні' },
+        ];
+        const spacingFieldNames = [
+            'padding_top_desktop',
+            'padding_bottom_desktop',
+            'padding_top_mobile',
+            'padding_bottom_mobile',
+        ];
         const formData = reactive({
             id: props.block.id || `block-${Date.now()}`,
             type: props.blockType,
             order: props.block.order || props.blockIndex + 1,
-            settings: { ...(props.block.settings || blockConfig.value?.default_settings || {}) },
-            data: { ...(props.block.data || blockConfig.value?.default_data || {}) },
+            settings: {
+                ...(blockConfig.value?.default_settings || {}),
+                ...(props.block.settings || {}),
+            },
+            data: {
+                ...(blockConfig.value?.default_data || {}),
+                ...(props.block.data || {}),
+            },
         });
 
         /**
@@ -343,6 +421,27 @@ export default {
             }
             return blockConfig.value.fields.settings || {};
         });
+
+        /**
+         * Get the shared responsive spacing fields.
+         */
+        const spacingFields = computed(() => spacingFieldNames.filter((fieldName) => settingsFields.value[fieldName]));
+
+        /**
+         * Get the spacing fields for the selected device.
+         */
+        const activeSpacingFields = computed(() => {
+            const suffix = spacingDevice.value === 'mobile' ? 'mobile' : 'desktop';
+
+            return spacingFields.value.filter((fieldName) => fieldName.endsWith(`_${suffix}`));
+        });
+
+        /**
+         * Get settings fields that are not part of responsive spacing controls.
+         */
+        const otherSettingsFields = computed(() => Object.fromEntries(
+            Object.entries(settingsFields.value).filter(([fieldName]) => !spacingFieldNames.includes(fieldName)),
+        ));
 
         /**
          * Reinitialize wysiwyg editors when component is updated (e.g., when block is expanded).
@@ -453,9 +552,15 @@ export default {
             props,
             blockConfig,
             settingsExpanded,
+            spacingExpanded,
+            spacingDevice,
+            spacingDevices,
             formData,
             dataFields,
             settingsFields,
+            spacingFields,
+            activeSpacingFields,
+            otherSettingsFields,
             notification,
             wysiwygRefs,
             setWysiwygRef,
@@ -535,6 +640,102 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+}
+
+.block-form__settings-group {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.block-form__settings-group-title {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border: 0;
+    background: #f9fafb;
+    color: #111827;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: left;
+}
+
+.block-form__settings-group-icon {
+    width: 1rem;
+    height: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.block-form__settings-group-icon--expanded {
+    transform: rotate(180deg);
+}
+
+.block-form__spacing-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.block-form__responsive-tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.375rem;
+    background: #f3f4f6;
+}
+
+.block-form__responsive-tab {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.block-form__responsive-tab--active {
+    background: #ffffff;
+    color: #111827;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.block-form__spacing-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.block-form__unit-input {
+    position: relative;
+}
+
+.block-form__unit-input .block-form__input {
+    padding-right: 2rem;
+}
+
+.block-form__unit {
+    position: absolute;
+    top: 50%;
+    right: 0.625rem;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 0.75rem;
+    pointer-events: none;
+}
+
+@media (max-width: 480px) {
+    .block-form__spacing-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .block-form__field {

@@ -22,6 +22,12 @@ class BlockRegistry
      */
     public static function register(string $type, array $config): void
     {
+        $fields = $config['fields'] ?? [];
+        $fields['settings'] = array_merge(
+            static::spacingFields(),
+            $fields['settings'] ?? [],
+        );
+
         static::$blocks[$type] = array_merge([
             'name' => $type,
             'description' => '',
@@ -32,7 +38,74 @@ class BlockRegistry
             'fields' => [],
             'default_settings' => [],
             'default_data' => [],
-        ], $config);
+        ], $config, [
+            'fields' => $fields,
+            'default_settings' => array_merge(
+                static::defaultSpacingSettings(),
+                $config['default_settings'] ?? [],
+            ),
+        ]);
+    }
+
+    /**
+     * Get the settings fields shared by every block.
+     *
+     * The editor groups these fields into responsive controls, while the
+     * values remain flat for backwards compatibility with existing blocks.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function spacingFields(): array
+    {
+        return [
+            'padding_top_desktop' => [
+                'type' => 'number',
+                'label' => 'Відступ зверху',
+                'required' => false,
+                'placeholder' => '0',
+                'min' => 0,
+                'step' => 1,
+            ],
+            'padding_bottom_desktop' => [
+                'type' => 'number',
+                'label' => 'Відступ знизу',
+                'required' => false,
+                'placeholder' => '0',
+                'min' => 0,
+                'step' => 1,
+            ],
+            'padding_top_mobile' => [
+                'type' => 'number',
+                'label' => 'Відступ зверху',
+                'required' => false,
+                'placeholder' => '0',
+                'min' => 0,
+                'step' => 1,
+            ],
+            'padding_bottom_mobile' => [
+                'type' => 'number',
+                'label' => 'Відступ знизу',
+                'required' => false,
+                'placeholder' => '0',
+                'min' => 0,
+                'step' => 1,
+            ],
+        ];
+    }
+
+    /**
+     * Get default responsive spacing values for a block.
+     *
+     * @return array<string, int>
+     */
+    public static function defaultSpacingSettings(): array
+    {
+        return [
+            'padding_top_desktop' => 0,
+            'padding_bottom_desktop' => 0,
+            'padding_top_mobile' => 0,
+            'padding_bottom_mobile' => 0,
+        ];
     }
 
     /**

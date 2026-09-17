@@ -103,13 +103,19 @@ class BlockRenderer
         ]);
 
         try {
-            return View::make($template, [
+            $rendered = View::make($template, [
                 'block' => $block,
                 'data' => $block['data'] ?? [],
                 'settings' => $block['settings'] ?? [],
                 'model' => $model,
                 'locale' => $locale,
             ])->render();
+
+            if (trim($rendered) === '') {
+                return '';
+            }
+
+            return $this->wrapWithSpacing($rendered, $block['settings'] ?? []);
         } catch (\Exception $e) {
             // Log error but don't break the page
             \Log::error('Failed to render block', [
@@ -121,6 +127,46 @@ class BlockRenderer
 
             return '';
         }
+    }
+
+    /**
+     * Wrap a block with responsive spacing controlled from the editor.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    protected function wrapWithSpacing(string $rendered, array $settings): string
+    {
+        $paddingTopMobile = $this->spacingValue($settings['padding_top_mobile'] ?? null);
+        $paddingBottomMobile = $this->spacingValue($settings['padding_bottom_mobile'] ?? null);
+        $paddingTopDesktop = $this->spacingValue(
+            $settings['padding_top_desktop'] ?? null,
+            $paddingTopMobile,
+        );
+        $paddingBottomDesktop = $this->spacingValue(
+            $settings['padding_bottom_desktop'] ?? null,
+            $paddingBottomMobile,
+        );
+
+        $style = implode('; ', [
+            "--block-padding-top-mobile: {$paddingTopMobile}px",
+            "--block-padding-bottom-mobile: {$paddingBottomMobile}px",
+            "--block-padding-top-desktop: {$paddingTopDesktop}px",
+            "--block-padding-bottom-desktop: {$paddingBottomDesktop}px",
+        ]);
+
+        return '<div class="block-rendered" style="'.$style.'">'.$rendered.'</div>';
+    }
+
+    /**
+     * Normalize a spacing value to a safe non-negative pixel amount.
+     */
+    protected function spacingValue(mixed $value, int $fallback = 0): int
+    {
+        if (! is_numeric($value) || (string) $value === '') {
+            return $fallback;
+        }
+
+        return max(0, min(9999, (int) $value));
     }
 
     /**
