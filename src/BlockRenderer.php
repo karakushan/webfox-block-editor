@@ -136,36 +136,43 @@ class BlockRenderer
      */
     protected function wrapWithSpacing(string $rendered, array $settings): string
     {
-        $paddingTopMobile = $this->spacingValue($settings['padding_top_mobile'] ?? null);
-        $paddingBottomMobile = $this->spacingValue($settings['padding_bottom_mobile'] ?? null);
-        $paddingTopDesktop = $this->spacingValue(
-            $settings['padding_top_desktop'] ?? null,
-            $paddingTopMobile,
-        );
-        $paddingBottomDesktop = $this->spacingValue(
-            $settings['padding_bottom_desktop'] ?? null,
-            $paddingBottomMobile,
-        );
+        $spacingFields = [
+            'padding_top_mobile',
+            'padding_bottom_mobile',
+            'padding_top_desktop',
+            'padding_bottom_desktop',
+        ];
+        $configuredFields = [];
+        $styles = [];
+        $attributes = ['class="block-rendered"'];
 
-        $style = implode('; ', [
-            "--block-padding-top-mobile: {$paddingTopMobile}px",
-            "--block-padding-bottom-mobile: {$paddingBottomMobile}px",
-            "--block-padding-top-desktop: {$paddingTopDesktop}px",
-            "--block-padding-bottom-desktop: {$paddingBottomDesktop}px",
-        ]);
+        foreach ($spacingFields as $field) {
+            $value = $settings[$field] ?? null;
 
-        return '<div class="block-rendered" style="'.$style.'">'.$rendered.'</div>';
+            if (! is_numeric($value) || (string) $value === '') {
+                continue;
+            }
+
+            $normalizedValue = $this->spacingValue($value);
+            $configuredFields[] = $field;
+            $styles[] = "--block-{$field}: {$normalizedValue}px";
+            $attributes[] = "data-block-{$field}";
+        }
+
+        if ($configuredFields === []) {
+            return $rendered;
+        }
+
+        $attributes[] = 'style="'.implode('; ', $styles).'"';
+
+        return '<div '.implode(' ', $attributes).'>'.$rendered.'</div>';
     }
 
     /**
      * Normalize a spacing value to a safe non-negative pixel amount.
      */
-    protected function spacingValue(mixed $value, int $fallback = 0): int
+    protected function spacingValue(mixed $value): int
     {
-        if (! is_numeric($value) || (string) $value === '') {
-            return $fallback;
-        }
-
         return max(0, min(9999, (int) $value));
     }
 

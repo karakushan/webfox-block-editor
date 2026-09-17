@@ -96,15 +96,15 @@ class BlockRegistry
     /**
      * Get default responsive spacing values for a block.
      *
-     * @return array<string, int>
+     * @return array<string, int|null>
      */
     public static function defaultSpacingSettings(): array
     {
         return [
-            'padding_top_desktop' => 0,
-            'padding_bottom_desktop' => 0,
-            'padding_top_mobile' => 0,
-            'padding_bottom_mobile' => 0,
+            'padding_top_desktop' => null,
+            'padding_bottom_desktop' => null,
+            'padding_top_mobile' => null,
+            'padding_bottom_mobile' => null,
         ];
     }
 
