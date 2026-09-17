@@ -103,10 +103,12 @@ class BlockRenderer
         ]);
 
         try {
+            $settings = BlockRegistry::resolveSettings($type, $block['settings'] ?? []);
+
             $rendered = View::make($template, [
                 'block' => $block,
                 'data' => $block['data'] ?? [],
-                'settings' => $block['settings'] ?? [],
+                'settings' => $settings,
                 'model' => $model,
                 'locale' => $locale,
             ])->render();
@@ -115,7 +117,7 @@ class BlockRenderer
                 return '';
             }
 
-            return $this->wrapWithSpacing($rendered, $block['settings'] ?? []);
+            return $this->wrapWithSpacing($rendered, $settings);
         } catch (\Exception $e) {
             // Log error but don't break the page
             \Log::error('Failed to render block', [

@@ -41,7 +41,7 @@ class BlockRegistry
         ], $config, [
             'fields' => $fields,
             'default_settings' => array_merge(
-                static::defaultSpacingSettings(),
+                static::defaultSpacingSettings($type),
                 $config['default_settings'] ?? [],
             ),
         ]);
@@ -98,14 +98,86 @@ class BlockRegistry
      *
      * @return array<string, int|null>
      */
-    public static function defaultSpacingSettings(): array
+    public static function defaultSpacingSettings(?string $type = null): array
     {
-        return [
+        $defaults = [
             'padding_top_desktop' => null,
             'padding_bottom_desktop' => null,
             'padding_top_mobile' => null,
             'padding_bottom_mobile' => null,
         ];
+
+        $legacyDefaults = [
+            'about-hero' => [80, 80, 32, 32],
+            'about-reasons' => [72, 72, 48, 48],
+            'about-statistics' => [80, 80, 48, 48],
+            'about-summary' => [96, 96, 48, 48],
+            'about-trusted' => [96, 96, 48, 48],
+            'about-who-we-are' => [96, 96, 48, 48],
+            'case-goals-client' => [96, 96, 64, 64],
+            'case-hero' => [12, 48, 12, 0],
+            'case-internal-pages' => [96, 96, 0, 48],
+            'case-mobile-version' => [96, 96, 48, 48],
+            'case-navigation' => [24, 24, 24, 24],
+            'case-other-projects' => [96, 96, 64, 64],
+            'case-results' => [72, 72, 72, 72],
+            'case-screen-preview' => [96, 96, 0, 0],
+            'case-workflow' => [96, 96, 64, 64],
+            'cases-filter' => [0, 0, 0, 64],
+            'cases-grid' => [0, 96, 0, 64],
+            'cases-hero' => [12, 48, 12, 64],
+            'contact-faq' => [96, 96, 48, 96],
+            'contact-hero' => [96, 72, 24, 72],
+            'contact-location-map' => [0, 80, 0, 0],
+            'home-advantages' => [128, 128, 80, 80],
+            'home-brand-lead' => [0, 0, 48, 0],
+            'home-cta' => [64, 96, 64, 64],
+            'home-hero' => [0, 0, 48, 0],
+            'home-growth-tags' => [116, 40, 88, 40],
+            'home-portfolio' => [96, 96, 64, 64],
+            'home-service-categories' => [16, 16, 6, 6],
+            'home-services' => [48, 48, 48, 48],
+            'map' => [72, 72, 48, 48],
+            'service-ad-examples' => [96, 96, 64, 64],
+            'service-ad-results' => [96, 96, 64, 64],
+            'service-additional-costs-block' => [64, 64, 48, 48],
+            'service-advantages-block' => [64, 64, 48, 48],
+            'service-child-services-tags-block' => [48, 48, 48, 48],
+            'service-cta-block' => [24, 24, 24, 24],
+            'service-cta-header-block' => [96, 96, 24, 24],
+            'service-language-groups-block' => [96, 96, 64, 64],
+            'service-other-services-block' => [96, 96, 24, 24],
+            'service-portfolio-block' => [96, 96, 48, 48],
+            'service-prices-block' => [64, 64, 48, 48],
+            'service-process-block' => [96, 96, 48, 48],
+            'service-promotion-factors-block' => [96, 64, 24, 24],
+            'service-reasons-block' => [96, 96, 48, 48],
+            'service-results-numbers-block' => [64, 64, 48, 48],
+            'service-specialists-block' => [64, 64, 48, 48],
+            'service-subservices-block' => [96, 96, 64, 64],
+            'service-tags-block' => [48, 48, 48, 48],
+            'service-technologies-block' => [96, 96, 48, 48],
+            'service-terms-block' => [64, 64, 48, 48],
+            'service-text-block' => [48, 48, 24, 24],
+            'service-top-results-block' => [64, 64, 48, 48],
+            'service-translation-services-block' => [64, 64, 48, 48],
+            'service-trusted-block' => [72, 72, 48, 48],
+            'service-why-choose-block' => [96, 96, 48, 48],
+            'link-placement-table' => [48, 48, 48, 48],
+        ];
+
+        if ($type === null || ! isset($legacyDefaults[$type])) {
+            return $defaults;
+        }
+
+        [$desktopTop, $desktopBottom, $mobileTop, $mobileBottom] = $legacyDefaults[$type];
+
+        return array_merge($defaults, [
+            'padding_top_desktop' => $desktopTop,
+            'padding_bottom_desktop' => $desktopBottom,
+            'padding_top_mobile' => $mobileTop,
+            'padding_bottom_mobile' => $mobileBottom,
+        ]);
     }
 
     /**
@@ -171,6 +243,28 @@ class BlockRegistry
     public static function defaultSettings(string $type): array
     {
         return static::$blocks[$type]['default_settings'] ?? [];
+    }
+
+    /**
+     * Merge persisted block settings with defaults without allowing empty
+     * spacing values to erase a legacy default.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    public static function resolveSettings(string $type, array $settings): array
+    {
+        $resolved = array_merge(static::defaultSettings($type), $settings);
+
+        foreach (array_keys(static::spacingFields()) as $field) {
+            $value = $settings[$field] ?? null;
+
+            if (! is_numeric($value) || (string) $value === '') {
+                $resolved[$field] = static::defaultSettings($type)[$field] ?? null;
+            }
+        }
+
+        return $resolved;
     }
 
     /**
